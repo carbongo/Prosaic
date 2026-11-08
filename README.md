@@ -1,6 +1,6 @@
 # Prosaic
 
-[![AI-DECLARATION: copilot](https://img.shields.io/badge/䷼%20AI--DECLARATION-copilot-fee2e2?labelColor=fee2e2)](https://ai-declaration.md)
+[![AI-DECLARATION: auto](https://img.shields.io/badge/䷼%20AI--DECLARATION-auto-ede9fe?labelColor=ede9fe)](https://ai-declaration.md)
 [![Build](https://img.shields.io/github/actions/workflow/status/DeepanshKhurana/Prosaic/ci.yml?label=build)](https://github.com/DeepanshKhurana/Prosaic/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Awesome CLI Apps](https://awesome.re/mentioned-badge.svg)](https://github.com/agarrharr/awesome-cli-apps#text-editors)
