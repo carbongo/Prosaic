@@ -66,6 +66,13 @@ def count_characters(content: str, include_spaces: bool = False) -> int:
     return len(stripped.replace(" ", "").replace("\n", "").replace("\t", ""))
 
 
+def count_words_and_characters(content: str) -> tuple[int, int]:
+    """count_words and count_characters with a single markdown strip."""
+    stripped = strip_markdown(content)
+    chars = len(stripped.replace(" ", "").replace("\n", "").replace("\t", ""))
+    return len(stripped.split()), chars
+
+
 def extract_headings(content: str) -> list[Heading]:
     """Extract all headings from markdown content."""
     headings = []
