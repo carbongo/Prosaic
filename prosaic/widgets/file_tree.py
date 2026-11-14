@@ -1,5 +1,6 @@
 """File tree widget for workspace navigation."""
 
+import os
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -18,6 +19,7 @@ class FilteredDirectoryTree(DirectoryTree, inherit_bindings=False):
     BINDINGS = [
         Binding("enter", "select_cursor", "open"),
         Binding("space", "toggle_node", "expand"),
+        Binding("delete,backspace", "delete_file", "delete"),
         Binding("shift+left", "cursor_parent", "cursor to parent", show=False),
         Binding("shift+right", "cursor_parent_next_sibling", "cursor to next ancestor", show=False),
         Binding("shift+up", "cursor_previous_sibling", "cursor to previous sibling", show=False),
@@ -26,6 +28,19 @@ class FilteredDirectoryTree(DirectoryTree, inherit_bindings=False):
         Binding("up", "cursor_up", "cursor up", show=False),
         Binding("down", "cursor_down", "cursor down", show=False),
     ]
+
+    class DeleteRequested(Message):
+        def __init__(self, path: Path) -> None:
+            self.path = path
+            super().__init__()
+
+    def action_delete_file(self) -> None:
+        node = self.cursor_node
+        if node is None or node.data is None:
+            return
+        path = node.data.path
+        if path.is_file():
+            self.post_message(self.DeleteRequested(path))
 
     def filter_paths(self, paths: Iterable[Path]) -> Iterable[Path]:
         return [
@@ -60,6 +75,29 @@ class FileTree(Vertical):
     def compose(self):
         yield Static("files", id="tree-title", classes="panel-title")
         yield FilteredDirectoryTree(self.root, id="directory-tree")
+
+    def _snapshot(self) -> frozenset[str]:
+        """Every visible path under the root."""
+        hidden = FilteredDirectoryTree.HIDDEN_FILES
+        found: set[str] = set()
+        for base, dirs, files in os.walk(self.root):
+            dirs[:] = [d for d in dirs if d not in hidden and not d.startswith(".")]
+            for name in dirs:
+                found.add(os.path.join(base, name))
+            for name in files:
+                if name not in hidden and not name.startswith("."):
+                    found.add(os.path.join(base, name))
+        return frozenset(found)
+
+    def refresh_from_disk(self) -> None:
+        """Reload the tree when files appeared or vanished. Blocking: call off the UI thread."""
+        snapshot = self._snapshot()
+        previous = getattr(self, "_last_snapshot", None)
+        self._last_snapshot = snapshot
+        if previous is not None and snapshot != previous:
+            self.app.call_from_thread(
+                self.query_one("#directory-tree", FilteredDirectoryTree).reload
+            )
 
     def expand_path(self, path: Path) -> None:
         """Expand directories leading to the given path."""

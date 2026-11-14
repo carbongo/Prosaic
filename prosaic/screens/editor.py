@@ -11,11 +11,12 @@ from textual.reactive import reactive
 from textual.screen import Screen
 from textual.widgets import Static, TextArea
 
-from prosaic.app import HelpScreen
+from prosaic.app import DeleteFileModal, HelpScreen
 from prosaic.config import get_books_dir, get_profile_config, get_workspace_dir, get_spell_check_enabled, set_spell_check_enabled
 from prosaic.core import count_words, count_words_and_characters
 from prosaic.core.metrics import MetricsTracker
-from prosaic.utils import read_text, write_text
+from prosaic.utils import CONFLICT_MARKER, disk_signature, read_text, write_text
+from prosaic.widgets.file_tree import FilteredDirectoryTree
 from prosaic.widgets import FileTree, OutlinePanel, SpellCheckTextArea, StatusBar
 
 
@@ -30,7 +31,7 @@ class EditorScreen(Screen, inherit_bindings=False):
         Binding("ctrl+s", "save", "save", priority=True),
         Binding("ctrl+m", "compile_manuscript", "compile", show=False, priority=True),
         Binding("ctrl+o", "toggle_outline", "outline"),
-        Binding("f5", "toggle_focus", "focus mode"),
+        Binding("ctrl+f,f5", "toggle_focus", "focus mode", priority=True),
         Binding("f6", "toggle_reader", "reader mode"),
         Binding("f7", "toggle_spell", "spell check"),
         Binding("f1", "show_help", "help"),
@@ -68,6 +69,7 @@ class EditorScreen(Screen, inherit_bindings=False):
         self._is_manuscript = False
         self._book_dir: Path | None = None
         self._refresh_timer = None
+        self._disk_sig: tuple[int, int] | None = None
 
     def compose(self) -> ComposeResult:
         ta_theme = "prosaic_light" if self._light_mode else "prosaic_dark"
@@ -92,6 +94,7 @@ class EditorScreen(Screen, inherit_bindings=False):
         editor = self.query_one("#editor", SpellCheckTextArea)
         editor.focus()
         self.set_interval(10, self._autosave)
+        self.set_interval(2, self._poll_disk)
 
         spell_enabled = get_spell_check_enabled()
         editor.spell_check_enabled = spell_enabled
@@ -138,6 +141,7 @@ class EditorScreen(Screen, inherit_bindings=False):
             return
 
         content = read_text(path)
+        self._disk_sig = disk_signature(path)
 
         if self._add_note:
             heading = datetime.now().strftime("## %Y-%m-%d %H:%M")
@@ -145,6 +149,7 @@ class EditorScreen(Screen, inherit_bindings=False):
                 content += "\n"
             content += f"\n{heading}\n\n"
             write_text(path, content)
+            self._disk_sig = disk_signature(path)
 
         editor = self.query_one("#editor", TextArea)
         # Loading is not an edit: without this the file showed as modified and was rewritten.
@@ -209,13 +214,73 @@ class EditorScreen(Screen, inherit_bindings=False):
         # Default: beginning of file
         return 0
 
+    async def _poll_disk(self) -> None:
+        """Pick up files changed, added or removed outside the app (another device, git)."""
+        self._sync_from_disk()
+        try:
+            file_tree = self.query_one("#file-tree", FileTree)
+            await asyncio.to_thread(file_tree.refresh_from_disk)
+        except Exception:
+            pass
+
+    def _sync_from_disk(self) -> None:
+        """Bring the editor in line with the file when it changed on disk.
+
+        An unedited buffer is replaced. An edited one stays and the incoming
+        version is kept beside the file as a conflict copy.
+        """
+        path = self.current_file
+        if path is None:
+            return
+        sig = disk_signature(path)
+        if sig is None or sig == self._disk_sig:
+            return
+        try:
+            content = read_text(path)
+        except (OSError, UnicodeDecodeError):
+            return
+        self._disk_sig = sig
+
+        editor = self.query_one("#editor", TextArea)
+        if content == editor.text:
+            return
+
+        if self.modified:
+            stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            copy = path.with_name(f"{path.stem}{CONFLICT_MARKER}{stamp}{path.suffix}")
+            write_text(copy, content)
+            self.notify(
+                f"{path.name} changed elsewhere; that version is kept as {copy.name}",
+                severity="warning",
+                timeout=15,
+            )
+            return
+
+        row, column = editor.cursor_location
+        scroll_y = editor.scroll_offset.y
+        with editor.prevent(TextArea.Changed):
+            editor.load_text(content)
+        row = min(row, editor.document.line_count - 1)
+        column = min(column, len(editor.document.get_line(row)))
+        editor.move_cursor((row, column))
+        editor.scroll_to(y=scroll_y, animate=False)
+
+        outline = self.query_one("#outline", OutlinePanel)
+        if outline.display:
+            outline.update_headings(content)
+        self._update_stats(content)
+        self.metrics.set_baseline(count_words(content))
+        self.query_one("#statusbar", StatusBar).refresh_git(path)
+
     def _save_file(self, silent: bool = False) -> None:
         if self.current_file is None:
             return
 
+        self._sync_from_disk()
         editor = self.query_one("#editor", TextArea)
         content = editor.text
         write_text(self.current_file, content)
+        self._disk_sig = disk_signature(self.current_file)
         self.modified = False
         self.metrics.record_save(count_words(content), self.current_file)
 
@@ -235,13 +300,18 @@ class EditorScreen(Screen, inherit_bindings=False):
             return
 
         try:
+            self._sync_from_disk()
             editor = self.query_one("#editor", TextArea)
             content = editor.text
             file_path = self.current_file
 
             await asyncio.to_thread(write_text, file_path, content)
 
-            self.modified = False
+            if file_path == self.current_file:
+                self._disk_sig = disk_signature(file_path)
+            # Keys typed during the write are still unsaved.
+            if editor.text == content:
+                self.modified = False
             self.metrics.record_save(count_words(content), file_path)
 
             statusbar = self.query_one("#statusbar", StatusBar)
@@ -344,6 +414,52 @@ class EditorScreen(Screen, inherit_bindings=False):
                 self._save_file(silent=True)
             self._load_file(event.path)
 
+    def on_filtered_directory_tree_delete_requested(
+        self,
+        event: FilteredDirectoryTree.DeleteRequested,
+    ) -> None:
+        path = event.path
+
+        def handle_delete(confirmed: bool | None) -> None:
+            if confirmed:
+                self._delete_file(path)
+
+        self.app.push_screen(DeleteFileModal(path), handle_delete)
+
+    def _delete_file(self, path: Path) -> None:
+        try:
+            path.unlink()
+        except OSError as exc:
+            self.notify(f"Delete failed: {exc}", severity="error")
+            return
+
+        if path == self.current_file:
+            editor = self.query_one("#editor", TextArea)
+            with editor.prevent(TextArea.Changed):
+                editor.load_text("")
+            self.current_file = None
+            self._disk_sig = None
+            self.modified = False
+            self.query_one("#outline", OutlinePanel).update_headings("")
+            self._update_stats("")
+
+        if path.parent.name == "chapters":
+            from prosaic.core.book import compile_manuscript
+            book_dir = path.parent.parent
+            chapters_file = book_dir / "chapters.md"
+            try:
+                if chapters_file.exists():
+                    lines = read_text(chapters_file).splitlines()
+                    kept = [line for line in lines if line.strip() != path.name]
+                    if kept != lines:
+                        write_text(chapters_file, "\n".join(kept) + "\n")
+                compile_manuscript(book_dir)
+            except Exception:
+                pass
+
+        self.query_one("#directory-tree", FilteredDirectoryTree).reload()
+        self.notify(f"Deleted {path.name}")
+
     def on_outline_panel_heading_selected(
         self,
         event: OutlinePanel.HeadingSelected,
@@ -415,6 +531,7 @@ class EditorScreen(Screen, inherit_bindings=False):
     def on_unmount(self) -> None:
         if self.modified and self.current_file:
             try:
+                self._sync_from_disk()
                 editor = self.query_one("#editor", TextArea)
                 write_text(self.current_file, editor.text)
                 if self._is_chapter and self._book_dir:

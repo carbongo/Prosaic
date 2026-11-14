@@ -45,10 +45,13 @@ editor
   ctrl+s    save
   ctrl+m    compile manuscript
   ctrl+q    go home
+  ctrl+f    focus mode
   ctrl+p    keys
   f1        help
-  f5        focus mode
   f6        reader mode
+
+file tree
+  delete    delete file
 
 editing
   ctrl+z    undo
@@ -501,6 +504,32 @@ class FileFindModal(ModalScreen[tuple[Path, bool] | None]):
         self.dismiss(None)
 
 
+class DeleteFileModal(ModalScreen[bool]):
+    """Modal for confirming file deletion."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "cancel"),
+        Binding("y", "confirm", "yes"),
+        Binding("n", "cancel", "no"),
+    ]
+
+    def __init__(self, path: Path, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.path = path
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog"):
+            yield Static("delete file", id="dialog-title")
+            yield Static(f"delete '{self.path.name}'?")
+            yield Static("(y) yes  (n) no", classes="dialog-hint")
+
+    def action_confirm(self) -> None:
+        self.dismiss(True)
+
+    def action_cancel(self) -> None:
+        self.dismiss(False)
+
+
 class HelpScreen(ModalScreen):
     """Help screen showing keybindings."""
 
@@ -521,6 +550,7 @@ class HelpScreen(ModalScreen):
 __all__ = [
     "BookSelectModal",
     "ChapterSelectModal",
+    "DeleteFileModal",
     "FileFindModal",
     "HelpScreen",
     "NewBookModal",

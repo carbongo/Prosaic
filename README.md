@@ -81,6 +81,7 @@ prosaic --dark ~/writing/draft.md
 - **Markdown-first**: Live outline, word counting
 - **Spell check**: 80+ languages powered by hunspell (F7 to toggle)
 - **Autosave**: Files automatically save every 10 seconds
+- **Live reload**: The open file and the file tree follow changes made outside the app; if the open file has unsaved edits, the outside version is kept beside it as a `.sync-conflict-` copy
 - **Focus mode**: Hide everything except your writing
 - **Reader mode**: Distraction-free reading
 - **Start writing**: Quick writing session with all panes open
@@ -179,7 +180,8 @@ The manuscript is read-only in Prosaic — edit your chapters, not the manuscrip
 | Editor | `Ctrl+m` | Compile manuscript (books only) |
 | Editor | `Ctrl+q` | Go home |
 | Editor | `F1` | Help |
-| Editor | `F5` | Focus mode |
+| Editor | `Ctrl+f` | Focus mode |
+| Editor | `Delete` | Delete the file selected in the file tree |
 | Editor | `F6` | Reader mode |
 | Editor | `F7` | Toggle spell check |
 | Writing | `Ctrl+z` | Undo |

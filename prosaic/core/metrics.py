@@ -45,6 +45,8 @@ class MetricsTracker:
 
     def record_save(self, word_count: int, file_path: Path) -> None:
         """Record a save event with current word count."""
+        # Another device may have written the file since it was loaded.
+        self.metrics = self._load()
         today = datetime.now().strftime("%Y-%m-%d")
         words_written = max(0, word_count - self._baseline_words)
 

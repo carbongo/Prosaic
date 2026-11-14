@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 from prosaic.core.markdown import extract_headings
-from prosaic.utils import read_text, write_text
+from prosaic.utils import CONFLICT_MARKER, read_text, write_text
 
 MANUSCRIPT_NOTICE = "[auto-generated — edit chapters individually]: #\n\n"
 CHAPTERS_DIR = "chapters"
@@ -84,7 +84,11 @@ def get_chapters(book_dir: Path) -> list[Path]:
     chapters_dir = book_dir / CHAPTERS_DIR
     chapters_file = book_dir / CHAPTERS_FILE
 
-    all_files = {p.name: p for p in chapters_dir.glob("*.md")} if chapters_dir.exists() else {}
+    all_files = (
+        {p.name: p for p in chapters_dir.glob("*.md") if CONFLICT_MARKER not in p.name}
+        if chapters_dir.exists()
+        else {}
+    )
 
     ordered: list[Path] = []
     listed: set[str] = set()
