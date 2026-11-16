@@ -612,25 +612,22 @@ HelpPanel {
 /* Rendered Markdown pane (live preview + reader mode) */
 #preview {
     display: none;
-    background: $surface;
+    width: 1fr;
+    height: 100%;
+    background: $background;
     border: round $border;
+    margin-left: 1;
+    padding: 1 2;
+    align-horizontal: center;
+    scrollbar-size-vertical: 1;
 }
 
-.preview #editor-container {
-    width: 1fr;
+#preview:focus {
+    border: round $primary;
 }
 
 .preview #preview {
     display: block;
-    width: 1fr;
-}
-
-.reader-mode #file-tree {
-    display: none;
-}
-
-.reader-mode #outline {
-    display: none;
 }
 
 .reader-mode #editor-container {
@@ -639,7 +636,80 @@ HelpPanel {
 
 .reader-mode #preview {
     display: block;
+    margin-left: 0;
+}
+
+#preview Markdown {
+    max-width: 90;
+    padding: 0 1 0 0;
+    color: $text;
+    background: $background;
+}
+
+#preview MarkdownHeader {
+    color: $primary;
+    background: $background;
+    text-style: bold;
+    margin: 1 0;
     width: 1fr;
+    content-align: left middle;
+}
+
+#preview MarkdownH1 {
+    border-bottom: solid $border;
+    margin: 0 0 1 0;
+}
+
+#preview MarkdownH3, #preview MarkdownH4 {
+    color: $primary-muted;
+}
+
+#preview MarkdownH5, #preview MarkdownH6 {
+    color: $text-muted;
+}
+
+#preview MarkdownBlock > .code_inline {
+    color: $secondary;
+    background: $accent;
+}
+
+#preview MarkdownBullet {
+    color: $text-muted;
+}
+
+#preview MarkdownBlockQuote {
+    background: $background;
+    border-left: outer $text-dim;
+    color: $text-muted;
+    text-style: italic;
+    margin: 0 0 1 0;
+}
+
+#preview MarkdownBlockQuote MarkdownBlockQuote {
+    margin: 0;
+}
+
+#preview MarkdownFence {
+    background: $accent;
+    color: $secondary;
+    margin: 0 0 1 0;
+    padding: 0 2;
+}
+
+#preview MarkdownHorizontalRule {
+    border-bottom: solid $border;
+}
+
+#preview MarkdownTable {
+    background: $background;
+}
+
+#preview MarkdownTableContent {
+    keyline: thin $border;
+}
+
+#preview MarkdownTableContent > .header {
+    color: $primary;
 }
 
 /* Profiles Screen */

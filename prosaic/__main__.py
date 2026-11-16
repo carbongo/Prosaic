@@ -147,6 +147,7 @@ class ProsaicApp(App):
         self.initial_file = initial_file
         self.notes_path = get_notes_path()
         ProsaicApp.CSS = PROSAIC_LIGHT_CSS if light_mode else PROSAIC_DARK_CSS
+        self.theme = "textual-light" if light_mode else "textual-dark"
 
     def on_mount(self) -> None:
         ensure_workspace()
@@ -174,6 +175,7 @@ class ProsaicApp(App):
     def toggle_theme(self) -> None:
         self.light_mode = not self.light_mode
         ProsaicApp.CSS = PROSAIC_LIGHT_CSS if self.light_mode else PROSAIC_DARK_CSS
+        self.theme = "textual-light" if self.light_mode else "textual-dark"
         self.refresh_css(animate=False)
 
         try:
@@ -182,7 +184,6 @@ class ProsaicApp(App):
                 ta = screen.query_one("#editor", SpellCheckTextArea)
                 ta.theme = "prosaic_light" if self.light_mode else "prosaic_dark"
                 ta._build_highlight_map()
-                screen.preview.set_theme(self.light_mode)
         except Exception:
             pass
 

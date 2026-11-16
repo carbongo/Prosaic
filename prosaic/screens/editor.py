@@ -33,7 +33,7 @@ class EditorScreen(Screen, inherit_bindings=False):
         Binding("ctrl+o", "toggle_outline", "outline"),
         Binding("ctrl+f,f5", "toggle_focus", "focus mode", priority=True),
         Binding("f6", "toggle_reader", "reader mode"),
-        Binding("f8", "toggle_preview", "preview", show=False),
+        Binding("f8", "toggle_preview", "live preview", priority=True),
         Binding("f7", "toggle_spell", "spell check"),
         Binding("f1", "show_help", "help"),
     ]
@@ -90,7 +90,7 @@ class EditorScreen(Screen, inherit_bindings=False):
             outline = OutlinePanel(id="outline")
             outline.display = False
             yield outline
-            self.preview = MarkdownView(id="preview", light=self._light_mode)
+            self.preview = MarkdownView(id="preview")
             yield self.preview
         yield StatusBar(id="statusbar")
 
@@ -276,8 +276,7 @@ class EditorScreen(Screen, inherit_bindings=False):
         self._update_stats(content)
         self.metrics.set_baseline(count_words(content))
         self.query_one("#statusbar", StatusBar).refresh_git(path)
-        if self.show_preview or self.reader_mode:
-            self._refresh_preview()
+        self._refresh_preview()
 
     def _save_file(self, silent: bool = False) -> None:
         if self.current_file is None:
@@ -369,10 +368,7 @@ class EditorScreen(Screen, inherit_bindings=False):
             if self.show_preview:
                 self.show_preview = False
             self._refresh_preview()
-            try:
-                self.preview.focus()
-            except Exception:
-                pass
+            self.preview.focus()
         else:
             self.remove_class("reader-mode")
             if not self.focus_mode:
@@ -389,12 +385,18 @@ class EditorScreen(Screen, inherit_bindings=False):
             self.remove_class("preview")
 
     def _refresh_preview(self) -> None:
-        """Re-render the live preview from the current editor text."""
-        preview = getattr(self, "preview", None)
-        if preview is None:
-            return
+        """Render the editor text into the Markdown pane, when the pane is showing."""
+        if self.show_preview or self.reader_mode:
+            self.run_worker(self._render_preview(), group="preview", exclusive=True)
+
+    async def _render_preview(self) -> None:
         editor = self.query_one("#editor", TextArea)
-        preview.set_text(editor.text)
+        await self.preview.set_text(editor.text)
+        self.preview.scroll_to_line(editor.cursor_location[0])
+
+    def on_text_area_selection_changed(self, event: TextArea.SelectionChanged) -> None:
+        if self.show_preview and self._refresh_timer is None:
+            self.preview.scroll_to_line(event.selection.end[0])
 
     def _restore_panes(self) -> None:
         """Restore pane visibility based on context."""
@@ -438,8 +440,7 @@ class EditorScreen(Screen, inherit_bindings=False):
         if outline.display:
             outline.update_headings(content)
         self._update_stats(content)
-        if self.show_preview or self.reader_mode:
-            self._refresh_preview()
+        self._refresh_preview()
 
     def on_file_tree_file_selected(self, event: FileTree.FileSelected) -> None:
         if event.path.suffix == ".md":
@@ -499,7 +500,11 @@ class EditorScreen(Screen, inherit_bindings=False):
     ) -> None:
         editor = self.query_one("#editor", TextArea)
         editor.move_cursor((event.line - 1, 0))
-        editor.focus()
+        if self.reader_mode:
+            lines = [h.line for h in self.query_one("#outline", OutlinePanel)._headings]
+            self.preview.scroll_to_heading(lines.index(event.line))
+        else:
+            editor.focus()
 
     def action_toggle_tree(self) -> None:
         self.show_tree = not self.show_tree

@@ -94,7 +94,7 @@ prosaic --dark ~/writing/draft.md
 
 ## Rendered Markdown
 
-F6 (reader) and F8 (live preview) render your notes as Markdown: headings, emphasis, inline code, links, bullet / numbered / task lists, blockquotes, rules, themed code fences, and tables. The live preview updates as you type and keeps its scroll position; colours follow the light/dark theme.
+F6 (reader) and F8 (live preview) render your notes as Markdown: headings, emphasis, inline code, links, nested bullet / numbered / task lists, blockquotes, rules, syntax-highlighted code fences, and tables. The live preview updates as you type and follows the cursor; in reader mode the outline jumps between headings. Colours follow the light/dark theme.
 
 ## Profiles
 
