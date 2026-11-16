@@ -49,6 +49,7 @@ editor
   ctrl+p    keys
   f1        help
   f6        reader mode
+  f8        live preview
 
 file tree
   delete    delete file

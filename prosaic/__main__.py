@@ -182,6 +182,7 @@ class ProsaicApp(App):
                 ta = screen.query_one("#editor", SpellCheckTextArea)
                 ta.theme = "prosaic_light" if self.light_mode else "prosaic_dark"
                 ta._build_highlight_map()
+                screen.preview.set_theme(self.light_mode)
         except Exception:
             pass
 

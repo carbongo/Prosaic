@@ -17,7 +17,7 @@ from prosaic.core import count_words, count_words_and_characters
 from prosaic.core.metrics import MetricsTracker
 from prosaic.utils import CONFLICT_MARKER, disk_signature, read_text, write_text
 from prosaic.widgets.file_tree import FilteredDirectoryTree
-from prosaic.widgets import FileTree, OutlinePanel, SpellCheckTextArea, StatusBar
+from prosaic.widgets import FileTree, MarkdownView, OutlinePanel, SpellCheckTextArea, StatusBar
 
 
 class EditorScreen(Screen, inherit_bindings=False):
@@ -33,6 +33,7 @@ class EditorScreen(Screen, inherit_bindings=False):
         Binding("ctrl+o", "toggle_outline", "outline"),
         Binding("ctrl+f,f5", "toggle_focus", "focus mode", priority=True),
         Binding("f6", "toggle_reader", "reader mode"),
+        Binding("f8", "toggle_preview", "preview", show=False),
         Binding("f7", "toggle_spell", "spell check"),
         Binding("f1", "show_help", "help"),
     ]
@@ -41,6 +42,7 @@ class EditorScreen(Screen, inherit_bindings=False):
     show_outline: reactive[bool] = reactive(False)
     focus_mode: reactive[bool] = reactive(False)
     reader_mode: reactive[bool] = reactive(False)
+    show_preview: reactive[bool] = reactive(False)
     current_file: reactive[Path | None] = reactive(None)
     # No repaint: flipping it on every autosave and the next key redrew the whole screen.
     modified: reactive[bool] = reactive(False, repaint=False)
@@ -88,6 +90,8 @@ class EditorScreen(Screen, inherit_bindings=False):
             outline = OutlinePanel(id="outline")
             outline.display = False
             yield outline
+            self.preview = MarkdownView(id="preview", light=self._light_mode)
+            yield self.preview
         yield StatusBar(id="statusbar")
 
     def on_mount(self) -> None:
@@ -182,6 +186,7 @@ class EditorScreen(Screen, inherit_bindings=False):
 
         self._update_stats(content)
         self.metrics.set_baseline(count_words(content))
+        self._refresh_preview()
         # Delay expand to let tree finish loading
         self.set_timer(0.1, self._expand_to_current_file)
 
@@ -271,6 +276,8 @@ class EditorScreen(Screen, inherit_bindings=False):
         self._update_stats(content)
         self.metrics.set_baseline(count_words(content))
         self.query_one("#statusbar", StatusBar).refresh_git(path)
+        if self.show_preview or self.reader_mode:
+            self._refresh_preview()
 
     def _save_file(self, silent: bool = False) -> None:
         if self.current_file is None:
@@ -350,6 +357,7 @@ class EditorScreen(Screen, inherit_bindings=False):
 
     def watch_reader_mode(self, reader: bool) -> None:
         editor = self.query_one("#editor", TextArea)
+        editor.read_only = reader
         if reader:
             self.add_class("reader-mode")
             if self._reader_mode_initial or self._is_manuscript:
@@ -358,12 +366,35 @@ class EditorScreen(Screen, inherit_bindings=False):
             else:
                 self.show_tree = False
                 self.show_outline = False
-            editor.read_only = True
+            if self.show_preview:
+                self.show_preview = False
+            self._refresh_preview()
+            try:
+                self.preview.focus()
+            except Exception:
+                pass
         else:
             self.remove_class("reader-mode")
             if not self.focus_mode:
                 self._restore_panes()
-            editor.read_only = False
+            editor.focus()
+
+    def watch_show_preview(self, preview: bool) -> None:
+        if preview:
+            self.add_class("preview")
+            if self.reader_mode:
+                self.reader_mode = False
+            self._refresh_preview()
+        else:
+            self.remove_class("preview")
+
+    def _refresh_preview(self) -> None:
+        """Re-render the live preview from the current editor text."""
+        preview = getattr(self, "preview", None)
+        if preview is None:
+            return
+        editor = self.query_one("#editor", TextArea)
+        preview.set_text(editor.text)
 
     def _restore_panes(self) -> None:
         """Restore pane visibility based on context."""
@@ -407,6 +438,8 @@ class EditorScreen(Screen, inherit_bindings=False):
         if outline.display:
             outline.update_headings(content)
         self._update_stats(content)
+        if self.show_preview or self.reader_mode:
+            self._refresh_preview()
 
     def on_file_tree_file_selected(self, event: FileTree.FileSelected) -> None:
         if event.path.suffix == ".md":
@@ -491,6 +524,9 @@ class EditorScreen(Screen, inherit_bindings=False):
             self.reader_mode = True
             self.focus_mode = False
             self.notify("Reader mode on")
+
+    def action_toggle_preview(self) -> None:
+        self.show_preview = not self.show_preview
 
     def action_toggle_spell(self) -> None:
         editor = self.query_one("#editor", SpellCheckTextArea)

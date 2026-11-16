@@ -609,8 +609,37 @@ HelpPanel {
     padding: 2 12;
 }
 
-.reader-mode #editor {
-    padding: 2 12;
+/* Rendered Markdown pane (live preview + reader mode) */
+#preview {
+    display: none;
+    background: $surface;
+    border: round $border;
+}
+
+.preview #editor-container {
+    width: 1fr;
+}
+
+.preview #preview {
+    display: block;
+    width: 1fr;
+}
+
+.reader-mode #file-tree {
+    display: none;
+}
+
+.reader-mode #outline {
+    display: none;
+}
+
+.reader-mode #editor-container {
+    display: none;
+}
+
+.reader-mode #preview {
+    display: block;
+    width: 1fr;
 }
 
 /* Profiles Screen */

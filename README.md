@@ -78,18 +78,23 @@ prosaic --dark ~/writing/draft.md
 
 ## Features
 
-- **Markdown-first**: Live outline, word counting
+- **Markdown-first**: Live outline, word counting, and a rendered Markdown view
+- **Live preview**: See the rendered document beside the editor as you type (F8)
+- **Reader mode**: Read rendered Markdown, distraction-free (F6)
 - **Spell check**: 80+ languages powered by hunspell (F7 to toggle)
 - **Autosave**: Files automatically save every 10 seconds
 - **Live reload**: The open file and the file tree follow changes made outside the app; if the open file has unsaved edits, the outside version is kept beside it as a `.sync-conflict-` copy
 - **Focus mode**: Hide everything except your writing
-- **Reader mode**: Distraction-free reading
 - **Start writing**: Quick writing session with all panes open
 - **Continue writing**: Resume your last edited document
 - **Daily metrics**: Track words and characters written each day
 - **Profiles**: Separate workspaces for different projects
 - **Status bar**: Real-time indicators for spell check, autosave, git status, and save state
 - **Git-ready**: Archive is Git-initialized for versioning
+
+## Rendered Markdown
+
+F6 (reader) and F8 (live preview) render your notes as Markdown: headings, emphasis, inline code, links, bullet / numbered / task lists, blockquotes, rules, themed code fences, and tables. The live preview updates as you type and keeps its scroll position; colours follow the light/dark theme.
 
 ## Profiles
 
@@ -184,6 +189,7 @@ The manuscript is read-only in Prosaic — edit your chapters, not the manuscrip
 | Editor | `Delete` | Delete the file selected in the file tree |
 | Editor | `F6` | Reader mode |
 | Editor | `F7` | Toggle spell check |
+| Editor | `F8` | Live preview |
 | Writing | `Ctrl+z` | Undo |
 | Writing | `Ctrl+y` | Redo |
 | Writing | `Ctrl+x` | Cut |
@@ -203,6 +209,7 @@ The manuscript is read-only in Prosaic — edit your chapters, not the manuscrip
 | work on a book | hidden | shown |
 | focus mode | hidden | hidden |
 | reader mode | hidden | hidden |
+| live preview | shown | shown |
 
 ## Status Bar
 
