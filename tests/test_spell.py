@@ -11,9 +11,9 @@ from prosaic.widgets.spell_text_area import SpellCheckTextArea
 
 @pytest.fixture(autouse=True)
 def _fresh_dictionaries():
-    spell_text_area._DICTIONARIES.clear()
+    spell_text_area._load_dictionary.cache_clear()
     yield
-    spell_text_area._DICTIONARIES.clear()
+    spell_text_area._load_dictionary.cache_clear()
 
 
 def _make_scan_target(spell_instance, enabled=True):

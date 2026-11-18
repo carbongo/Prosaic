@@ -30,11 +30,11 @@ class OutlineItem(ListItem):
         yield Label(self.heading.text)
 
     def set_heading(self, heading: Heading) -> None:
-        """Update in place, so typing never rebuilds the list."""
+        """Update in place, so typing never rebuilds the list. Safe before compose."""
         if heading.level != self.heading.level:
             self.remove_class(f"outline-item--h{self.heading.level}")
             self.add_class(f"outline-item--h{heading.level}")
-        labels = self.query(Label)  # empty until composed; compose reads self.heading
+        labels = self.query(Label)
         if heading.text != self.heading.text and labels:
             labels.first().update(heading.text)
         self.heading = heading

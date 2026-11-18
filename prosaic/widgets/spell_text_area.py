@@ -1,16 +1,21 @@
 """TextArea subclass with live spell-check underlines and markdown highlighting."""
 
 import re
-from functools import lru_cache
+from functools import cache, lru_cache
 
 from rich.style import Style
-from textual._styles_cache import StylesCache
 from textual.binding import Binding
 from textual.reactive import reactive
 
 from phunspell import Phunspell
 from textual.widgets import TextArea
 from textual.widgets.text_area import TextAreaTheme
+
+from prosaic.widgets._workarounds import (
+    clear_styles_cache,
+    release_syntax_tree,
+    release_theme_watcher,
+)
 
 _LIGHT_MARKER = Style(color="#b8a090")
 _DARK_MARKER = Style(color="#6a5a4a")
@@ -81,28 +86,16 @@ _ITALIC_ASTERISK = re.compile(r"(?<!\*)(\*)([^*]+)(\*)(?!\*)")
 _ITALIC_UNDERSCORE = re.compile(r"(?<!_)(_)([^_]+)(_)(?!_)")
 _INLINE_CODE = re.compile(r"(`)([^`]+)(`)")
 
-_DICTIONARIES: dict[str, Phunspell] = {}
-
-
+@cache
 def _load_dictionary(language: str) -> Phunspell:
-    """One shared dictionary per language, with word lookups cached (spylls is pure Python)."""
-    spell = _DICTIONARIES.get(language)
-    if spell is None:
-        spell = Phunspell(language)
-        spell.lookup = lru_cache(maxsize=100_000)(spell.lookup)
-        _DICTIONARIES[language] = spell
+    """Load one shared dictionary per language, with word lookups memoised."""
+    spell = Phunspell(language)
+    spell.lookup = lru_cache(maxsize=100_000)(spell.lookup)
     return spell
 
 
-def _release_syntax_tree(document) -> None:
-    """tree-sitter's Tree keeps the document's read callback but can't be garbage
-    collected, so a document leaks unless its tree is dropped once it's done with."""
-    if hasattr(document, "_syntax_tree"):
-        document._syntax_tree = None
-
-
 def _inline_highlights(line: str) -> list[tuple[int, int, str]]:
-    """Bold, italic and inline-code spans in one line."""
+    """Return (start, end, style) spans for bold, italic and inline code, delimiters as markers."""
     highlights: list[tuple[int, int, str]] = []
     for pattern, style in (
         (_INLINE_CODE, "inline_code"),
@@ -167,7 +160,6 @@ class SpellCheckTextArea(TextArea, inherit_bindings=False):
         self._spell_loaded = False
         self._misspelled: dict[int, list[tuple[int, int]]] = {}
         self._md_highlights: dict[int, list[tuple[int, int, str]]] = {}
-        # Results per line text: an edit only rescans the lines it changed.
         self._spell_lines: dict[str, list[tuple[int, int]]] = {}
         self._md_lines: dict[str, list[tuple[int, int, str]]] = {}
         requested_theme = kwargs.pop("theme", "prosaic_light")
@@ -193,20 +185,12 @@ class SpellCheckTextArea(TextArea, inherit_bindings=False):
         previous = getattr(self, "document", None)
         super()._set_document(text, language)
         if previous is not self.document:
-            _release_syntax_tree(previous)
+            release_syntax_tree(previous)
 
     def on_unmount(self) -> None:
-        # TextArea watches app.theme and Textual prunes those watchers only when the
-        # theme changes, so without this every closed editor stays in memory.
-        try:
-            watchers = getattr(self.app, "__watchers", {}).get("theme", [])
-            watchers[:] = [(node, cb) for node, cb in watchers if node is not self]
-        except Exception:
-            pass
-        _release_syntax_tree(self.document)
-        # Textual's lru_cache on StylesCache.get_inner_outer is keyed on each widget's
-        # styles cache, so it keeps up to 1024 closed widgets' rendered lines alive.
-        StylesCache.get_inner_outer.cache_clear()
+        release_theme_watcher(self)
+        release_syntax_tree(self.document)
+        clear_styles_cache()
 
     def _scan_inline_markdown(self, text: str) -> None:
         """Scan for inline markdown elements (bold, italic, code)."""
@@ -243,6 +227,7 @@ class SpellCheckTextArea(TextArea, inherit_bindings=False):
         self._md_lines = lines
 
     def _scan_spelling(self, text: str) -> None:
+        """Find misspellings, reusing results for lines whose text has not changed."""
         self._misspelled.clear()
         if not self.spell_check_enabled:
             return

@@ -19,6 +19,8 @@ from prosaic.utils import CONFLICT_MARKER, disk_signature, read_text, write_text
 from prosaic.widgets.file_tree import FilteredDirectoryTree
 from prosaic.widgets import FileTree, MarkdownView, OutlinePanel, SpellCheckTextArea, StatusBar
 
+STATS_REFRESH_SECONDS = 0.25
+
 
 class EditorScreen(Screen, inherit_bindings=False):
     """Main writing screen with editor, file tree, and outline."""
@@ -44,7 +46,6 @@ class EditorScreen(Screen, inherit_bindings=False):
     reader_mode: reactive[bool] = reactive(False)
     show_preview: reactive[bool] = reactive(False)
     current_file: reactive[Path | None] = reactive(None)
-    # No repaint: flipping it on every autosave and the next key redrew the whole screen.
     modified: reactive[bool] = reactive(False, repaint=False)
 
     def __init__(
@@ -70,7 +71,7 @@ class EditorScreen(Screen, inherit_bindings=False):
         self._is_chapter = False
         self._is_manuscript = False
         self._book_dir: Path | None = None
-        self._refresh_timer = None
+        self._stats_timer = None
         self._disk_sig: tuple[int, int] | None = None
 
     def compose(self) -> ComposeResult:
@@ -141,6 +142,7 @@ class EditorScreen(Screen, inherit_bindings=False):
             self.show_outline = False
 
     def _load_file(self, path: Path) -> None:
+        """Load a file into the editor without counting the load as an edit."""
         if not path.exists():
             return
 
@@ -156,7 +158,6 @@ class EditorScreen(Screen, inherit_bindings=False):
             self._disk_sig = disk_signature(path)
 
         editor = self.query_one("#editor", TextArea)
-        # Loading is not an edit: without this the file showed as modified and was rewritten.
         with editor.prevent(TextArea.Changed):
             editor.load_text(content)
 
@@ -429,12 +430,12 @@ class EditorScreen(Screen, inherit_bindings=False):
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         self.modified = True
-        if self._refresh_timer is None:
-            self._refresh_timer = self.set_timer(0.25, self._refresh_derived)
+        if self._stats_timer is None:
+            self._stats_timer = self.set_timer(STATS_REFRESH_SECONDS, self._refresh_stats)
 
-    def _refresh_derived(self) -> None:
-        """Outline and counts re-read the whole document: at most four times a second."""
-        self._refresh_timer = None
+    def _refresh_stats(self) -> None:
+        """Refresh the outline and counts, which re-read the whole document."""
+        self._stats_timer = None
         content = self.query_one("#editor", TextArea).text
         outline = self.query_one("#outline", OutlinePanel)
         if outline.display:
